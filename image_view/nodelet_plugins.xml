@@ -4,6 +4,10 @@
     <description>Nodelet to view a sensor_msgs/Image topic</description>
   </class>
 
+  <class name="image_view/image_saver" type="image_view::ImageSaverNodelet" base_class_type="nodelet::Nodelet">
+    <description>Nodelet to save images as jpg/png files from a sensor_msgs/Image topic</description>
+  </class>
+
   <class name="image_view/disparity" type="image_view::DisparityNodelet" base_class_type="nodelet::Nodelet">
     <description>Nodelet to view a stereo_msgs/DisparityImage topic</description>
   </class>

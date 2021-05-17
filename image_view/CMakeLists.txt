@@ -39,7 +39,11 @@ if(ANDROID)
 endif()
 
 # Nodelet library
-add_library(image_view src/nodelets/image_nodelet.cpp src/nodelets/disparity_nodelet.cpp src/nodelets/window_thread.cpp)
+add_library(image_view
+  src/nodelets/image_nodelet.cpp
+  src/nodelets/image_saver_nodelet.cpp
+  src/nodelets/disparity_nodelet.cpp
+  src/nodelets/window_thread.cpp)
 target_link_libraries(image_view ${catkin_LIBRARIES}
                                  ${OpenCV_LIBRARIES}
                                  ${Boost_LIBRARIES}
