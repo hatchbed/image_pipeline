@@ -56,6 +56,7 @@ class ImageSaverNodelet : public nodelet::Nodelet
   boost::format g_format_;
   std::string encoding_ = "bgr8";
   bool save_all_image_ = true;
+  bool save_camera_info_ = true;
   bool save_image_service_ = false;
   bool request_start_end_ = false;
   bool is_first_image_ = true;
@@ -86,13 +87,14 @@ void ImageSaverNodelet::onInit()
   local_nh.param("filename_format", format_string, format_string);
   local_nh.param("encoding", encoding_, encoding_);
   local_nh.param("save_all_image", save_all_image_, save_all_image_);
+  local_nh.param("save_camera_info", save_camera_info_, save_camera_info_);
   local_nh.param("request_start_end", request_start_end_, request_start_end_);
   g_format_.parse(format_string);
 
-  // Useful when CameraInfo is being published
-  sub_image_and_camera_ = it.subscribeCamera(topic, 1, &ImageSaverNodelet::callbackWithCameraInfo, this);
+  if (save_camera_info_) {
+    sub_image_and_camera_ = it.subscribeCamera(topic, 1, &ImageSaverNodelet::callbackWithCameraInfo, this);
+  }
 
-  // Useful when CameraInfo is not being published
   sub_image_ = it.subscribe(topic, 1, boost::bind(&ImageSaverNodelet::callbackWithoutCameraInfo, this, _1));
 
   srv_start_ = local_nh.advertiseService("start", &ImageSaverNodelet::callbackStartSave, this);
