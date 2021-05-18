@@ -32,6 +32,10 @@
 *  POSSIBILITY OF SUCH DAMAGE.
 *********************************************************************/
 
+#include <string>
+
+#include <boost/algorithm/string/predicate.hpp>
+#include <boost/algorithm/string/replace.hpp>
 #include <boost/format.hpp>
 #include <camera_calibration_parsers/parse.h>
 #include <cv_bridge/cv_bridge.h>
@@ -61,6 +65,8 @@ class ImageSaverNodelet : public nodelet::Nodelet
   bool request_start_end_ = false;
   bool is_first_image_ = true;
   bool has_camera_info_ = false;
+  bool fill_msg_stamp_ = false;
+  bool fill_rcv_stamp_ = false;
   size_t count_ = 0;
   ros::Time start_time_;
   ros::Time end_time_;
@@ -73,7 +79,7 @@ class ImageSaverNodelet : public nodelet::Nodelet
   bool callbackEndSave(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res);
   bool callbackSave(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
 
-  bool saveImage(const sensor_msgs::ImageConstPtr& image_msg, std::string &filename);
+  bool saveImage(const sensor_msgs::ImageConstPtr& image_msg, const ros::Time& rcv_time, std::string &filename);
 };
 
 void ImageSaverNodelet::onInit()
@@ -89,6 +95,17 @@ void ImageSaverNodelet::onInit()
   local_nh.param("save_all_image", save_all_image_, save_all_image_);
   local_nh.param("save_camera_info", save_camera_info_, save_camera_info_);
   local_nh.param("request_start_end", request_start_end_, request_start_end_);
+
+
+  if (boost::algorithm::ends_with(format_string, ".%s"))
+  {
+    format_string.resize(format_string.size () - 2);
+    format_string += "jpg";
+  }
+
+  fill_msg_stamp_ = format_string.find("{msg-stamp}") != std::string::npos;
+  fill_rcv_stamp_ = format_string.find("{rcv-stamp}") != std::string::npos;
+
   g_format_.parse(format_string);
 
   if (save_camera_info_) {
@@ -104,6 +121,7 @@ void ImageSaverNodelet::onInit()
 
 void ImageSaverNodelet::callbackWithoutCameraInfo(const sensor_msgs::ImageConstPtr& image_msg)
 {
+  ros::Time rcv_time = ros::Time::now();
   if (is_first_image_)
   {
     is_first_image_ = false;
@@ -131,7 +149,7 @@ void ImageSaverNodelet::callbackWithoutCameraInfo(const sensor_msgs::ImageConstP
 
   // save the image
   std::string filename;
-  if (!saveImage(image_msg, filename))
+  if (!saveImage(image_msg, rcv_time, filename))
     return;
 
   count_++;
@@ -141,6 +159,7 @@ void ImageSaverNodelet::callbackWithCameraInfo(
   const sensor_msgs::ImageConstPtr& image_msg,
   const sensor_msgs::CameraInfoConstPtr& info)
 {
+  ros::Time rcv_time = ros::Time::now();
   has_camera_info_ = true;
 
   if (!save_image_service_ && request_start_end_)
@@ -155,7 +174,7 @@ void ImageSaverNodelet::callbackWithCameraInfo(
 
   // save the image
   std::string filename;
-  if (!saveImage(image_msg, filename))
+  if (!saveImage(image_msg, rcv_time, filename))
     return;
 
   // save the CameraInfo
@@ -193,7 +212,7 @@ bool ImageSaverNodelet::callbackSave(std_srvs::Empty::Request &req, std_srvs::Em
   return true;
 }
 
-bool ImageSaverNodelet::saveImage(const sensor_msgs::ImageConstPtr& image_msg, std::string &filename)
+bool ImageSaverNodelet::saveImage(const sensor_msgs::ImageConstPtr& image_msg, const ros::Time& rcv_time, std::string &filename)
 {
   cv::Mat image;
   try
@@ -206,17 +225,27 @@ bool ImageSaverNodelet::saveImage(const sensor_msgs::ImageConstPtr& image_msg, s
   }
 
   if (!image.empty()) {
-    try {
-      filename = (g_format_).str();
-    } catch (...) { g_format_.clear(); }
-    try {
-      filename = (g_format_ % count_).str();
-    } catch (...) { g_format_.clear(); }
-    try {
-      filename = (g_format_ % count_ % "jpg").str();
-    } catch (...) { g_format_.clear(); }
-
     if ( save_all_image_ || save_image_service_ ) {
+
+      try {
+        filename = (g_format_).str();
+      } catch (...) { g_format_.clear(); }
+      try {
+        filename = (g_format_ % count_).str();
+      } catch (...) { g_format_.clear(); }
+
+      if (fill_msg_stamp_)
+      {
+        std::string msg_stamp = (boost::format("%i.%09i") % image_msg->header.stamp.sec % image_msg->header.stamp.nsec).str();
+        boost::replace_all(filename, "{msg-stamp}", msg_stamp);
+      }
+
+      if (fill_rcv_stamp_)
+      {
+        std::string rcv_stamp = (boost::format("%i.%09i") % rcv_time.sec % rcv_time.nsec).str();
+        boost::replace_all(filename, "{rcv-stamp}", rcv_stamp);
+      }
+
       cv::imwrite(filename, image);
       ROS_INFO("Saved image %s", filename.c_str());
 
